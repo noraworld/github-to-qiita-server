@@ -39,32 +39,70 @@ post '/payload' do
       end
 
       content = response.body.gsub(/\A#{Regexp.escape(yaml_to_be_trimmed)}/, '').gsub(/\A\n+/, '')
-      publish_to_qiita(content, YAML.safe_load(yaml_description))
+      publish_to_qiita(content, YAML.safe_load(yaml_description), new_file_path, mode: :add)
     end
   end
 
   puts 'ok'
 end
 
-def publish_to_qiita(content, description)
+def publish_to_qiita(content, description, new_file_path, mode: nil)
+  raise ArgumentError, "Argument `mode' is not specified" if mode.nil?
+  raise ArgumentError, "Argument `mode' must be :add or :edit" unless %i[add edit].include?(mode)
+
   tags = []
   description['topics'].each { |topic| tags.push("name": topic) }
 
+  request_url = case mode
+                when :add
+                  '/api/v2/items'
+                when :edit
+                  "/api/v2/items/#{qiita_item_id(new_file_path)}"
+                end
+  request_body = case mode
+                 when :add
+                   {
+                     body: content.force_encoding('UTF-8'),
+                     coediting: false,
+                     group_url_name: nil,
+                     private: true,
+                     tags: tags,
+                     title: description['title'],
+                     tweet: false # only mode :add
+                   }.to_json
+                 when :edit
+                   {
+                     body: content.force_encoding('UTF-8'),
+                     coediting: false,
+                     group_url_name: nil,
+                     private: true,
+                     tags: tags,
+                     title: description['title'],
+                   }.to_json
+                 end
+
   connection = Faraday.new('https://qiita.com')
   response = connection.post do |request|
-    request.url('/api/v2/items')
+    request.url(request_url)
     request.headers['Authorization'] = "Bearer #{ENV['QIITA_ACCESS_TOKEN']}"
     request.headers['Content-Type']  = 'application/json'
-    request.body = {
-      body: content.force_encoding('UTF-8'),
-      coediting: false,
-      group_url_name: nil,
-      private: true,
-      tags: tags,
-      title: description['title'],
-      tweet: false
-    }.to_json
+    request.body = request_body
   end
 
-  puts response.inspect
+  puts JSON.parse(response.body)['id']
+  map_filepath_with_qiita_item_id(new_file_path, JSON.parse(response.body)['id']) if mode == :add
+end
+
+def map_filepath_with_qiita_item_id(filepath, item_id)
+  File.open('mapping.txt', 'a') do |file|
+    file.write("#{filepath}, #{item_id}\n")
+  end
+end
+
+def qiita_item_id(filepath)
+  File.open('mapping.txt', 'r') do |file|
+    file.each_line do |line|
+      return line.split(',').last.gsub(' ', '') if line.include?(filepath)
+    end
+  end
 end
