@@ -13,6 +13,9 @@ Dotenv.load
 
 class QiitaItemNotFoundError < StandardError; end
 
+# TODO: support private repo because developers blog content repo is actually a private!
+# TODO: securing my webhooks (https://docs.github.com/en/developers/webhooks-and-events/securing-your-webhooks)
+
 post '/payload' do
   JSON.parse(params['payload'])['commits'].each do |commit|
     commit['added'].each do |new_file_path|
