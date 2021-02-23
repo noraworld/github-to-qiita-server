@@ -10,6 +10,8 @@ require 'yaml'
 Bundler.require
 Dotenv.load
 
+class QiitaItemNotFoundError < StandardError; end
+
 post '/payload' do
   JSON.parse(params['payload'])['commits'].each do |commit|
     commit['added'].each do |new_file_path|
@@ -90,7 +92,7 @@ def publish_to_qiita(content, description, new_file_path, mode: nil)
                      group_url_name: nil,
                      private: true,
                      tags: tags,
-                     title: description['title'],
+                     title: description['title']
                    }.to_json
                  end
 
@@ -129,4 +131,6 @@ def qiita_item_id(filepath)
       return line.split(',').last.gsub(/[\s\r\n]/, '') if line.include?(filepath)
     end
   end
+
+  raise QiitaItemNotFoundError, 'Qiita item not found'
 end
