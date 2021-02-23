@@ -3,6 +3,7 @@
 require 'bundler/setup'
 require 'faraday'
 require 'json'
+require 'logger'
 require 'sinatra'
 require 'sinatra/reloader'
 require 'yaml'
@@ -30,7 +31,9 @@ post '/payload' do
     end
   end
 
-  puts 'ok'
+  # TODO: implement deletion?
+
+  status 200
 end
 
 def retrieve_content_and_description(new_file_path)
@@ -62,12 +65,21 @@ def retrieve_content_and_description(new_file_path)
 end
 
 def publish_to_qiita(content, description, new_file_path, mode: nil)
-  raise ArgumentError, "Argument `mode' is not specified" if mode.nil?
-  raise ArgumentError, "Argument `mode' must be :add or :edit" unless %i[add edit].include?(mode)
+  if mode.nil?
+    log.fatal("Argument `mode' is not specified")
+    raise ArgumentError, "Argument `mode' is not specified"
+  end
+
+  unless %i[add edit].include?(mode)
+    log.fatal("Argument `mode' must be :add or :edit")
+    raise ArgumentError, "Argument `mode' must be :add or :edit"
+  end
 
   tags = []
   description['topics'].each { |topic| tags.push("name": topic) }
 
+  # TODO: change "private" and "tweet" to description['published']
+  #       and set false if development
   request_url = case mode
                 when :add
                   '/api/v2/items'
@@ -106,6 +118,9 @@ def publish_to_qiita(content, description, new_file_path, mode: nil)
       request.headers['Content-Type']  = 'application/json'
       request.body = request_body
     end
+
+    log.debug('Published article(s) to Qiita successfully!')
+    log.debug("Qiita item id: #{JSON.parse(response.body)['id']}")
   when :edit
     connection = Faraday.new('https://qiita.com')
     response = connection.patch do |request|
@@ -114,12 +129,17 @@ def publish_to_qiita(content, description, new_file_path, mode: nil)
       request.headers['Content-Type']  = 'application/json'
       request.body = request_body
     end
+
+    log.debug('Modified article(s) on Qiita successfully!')
+    log.debug("Qiita item id: #{JSON.parse(response.body)['id']}")
   end
 
   JSON.parse(response.body)
 end
 
 def map_filepath_with_qiita_item_id(filepath, item_id)
+  # TODO: reverse (top is the latest) is better?
+  # TODO: manage mapping file in developers blog content repo, not in this repo, in the future
   File.open('mapping.txt', 'a') do |file|
     file.write("#{filepath}, #{item_id}\n")
   end
@@ -132,5 +152,12 @@ def qiita_item_id(filepath)
     end
   end
 
+  log.fatal('Qiita item not found')
+  log.fatal(filepath)
   raise QiitaItemNotFoundError, 'Qiita item not found'
+end
+
+def log
+  FileUtils.mkdir_p('logs') unless FileTest.exist?('logs')
+  Logger.new('logs/error.log', 'monthly')
 end
