@@ -11,10 +11,12 @@ Dotenv.load
 
 post '/payload' do
   JSON.parse(params['payload'])['commits'].each do |commit|
-    commit['modified'].each do |new_file|
+    commit['modified'].each do |new_file_path|
+      next unless ENV['INCLUDED_DIR']&.split(',')&.include?(File.dirname(new_file_path))
+
       connection = Faraday.new('https://api.github.com')
       connection.headers['Accept'] = 'application/vnd.github.VERSION.raw'
-      response = connection.get("/repos/#{ENV['GITHUB_REPOS']}/contents/#{new_file}")
+      response = connection.get("/repos/#{ENV['GITHUB_REPOS']}/contents/#{new_file_path}")
 
       yaml_description = ''
       yaml_to_be_trimmed = ''
