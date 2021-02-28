@@ -15,9 +15,10 @@ Dotenv.load
 class QiitaItemNotFoundError < StandardError; end
 
 # TODO: support private repo because developers blog content repo is actually a private!
-# TODO: securing my webhooks (https://docs.github.com/en/developers/webhooks-and-events/securing-your-webhooks)
 
 post '/payload' do
+  verify_signature(request.body.read)
+
   JSON.parse(params['payload'])['commits'].each do |commit|
     commit['added'].each do |new_file_path|
       next unless ENV['INCLUDED_DIR']&.split(',')&.include?(File.dirname(new_file_path))
@@ -159,6 +160,11 @@ def qiita_item_id(filepath)
   log.fatal('Qiita item not found')
   log.fatal(filepath)
   raise QiitaItemNotFoundError, 'Qiita item not found'
+end
+
+def verify_signature(payload_body)
+  signature = "sha256=#{OpenSSL::HMAC.hexdigest(OpenSSL::Digest.new('sha256'), ENV['GITHUB_WEBHOOK_SECRET_TOKEN'], payload_body)}"
+  return halt 500, "Signatures didn't match!" unless Rack::Utils.secure_compare(signature, request.env['HTTP_X_HUB_SIGNATURE_256'])
 end
 
 def log
