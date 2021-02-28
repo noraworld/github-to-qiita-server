@@ -6,7 +6,7 @@ require 'json'
 require 'logger'
 require 'pry'
 require 'sinatra'
-require 'sinatra/reloader' if development?
+require 'sinatra/reloader' if settings.development?
 require 'yaml'
 
 Bundler.require
@@ -83,8 +83,6 @@ def publish_to_qiita(content, description, new_file_path, mode: nil)
   tags = []
   description['topics'].each { |topic| tags.push("name": topic) }
 
-  # TODO: change "private" and "tweet" to description['published']
-  #       and set false if development
   request_url = case mode
                 when :add
                   '/api/v2/items'
@@ -97,17 +95,17 @@ def publish_to_qiita(content, description, new_file_path, mode: nil)
                      body: content.force_encoding('UTF-8'),
                      coediting: false,
                      group_url_name: nil,
-                     private: true,
+                     private: private?(published: description['published']),
                      tags: tags,
                      title: description['title'],
-                     tweet: false # only mode :add
+                     tweet: !private?(published: description['published']) # only mode :add
                    }.to_json
                  when :edit
                    {
                      body: content.force_encoding('UTF-8'),
                      coediting: false,
                      group_url_name: nil,
-                     private: true,
+                     private: private?(published: description['published']),
                      tags: tags,
                      title: description['title']
                    }.to_json
@@ -140,6 +138,12 @@ def publish_to_qiita(content, description, new_file_path, mode: nil)
   end
 
   JSON.parse(response.body)
+end
+
+def private?(published: false)
+  return true if settings.development?
+
+  !published
 end
 
 def map_filepath_with_qiita_item_id(filepath, item_id)
