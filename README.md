@@ -1,6 +1,12 @@
 # GitHub-to-Qiita
 Pushing development articles into the specific repository, they will be published to [Qiita](https://qiita.com) via [Qiita API v2](https://qiita.com/api/v2/docs).
 
+## Features
+* When new file is added to GitHub repository, it will be published to Qiita as a new item
+* When the existing file is modified on GitHub repository, the corresponding Qiita item will be modified
+
+The multiple files of addition and modification are supported. When the multiple files are added and modified by one pushing, all of them will be published and modified at one time.
+
 ## Setup
 ### Add GitHub Webhooks
 1. Visit `https://github.com/<GITHUB_USERNAME>/<GITHUB_REPOSITORY>/settings/hooks/new`
