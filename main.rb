@@ -15,8 +15,6 @@ Dotenv.load
 class QiitaItemNotFoundError < StandardError; end
 class CannotGetGitHubContentError < StandardError; end
 
-# TODO: support private repo because developers blog content repo is actually a private!
-
 post '/payload' do
   verify_signature(request.body.read)
 
