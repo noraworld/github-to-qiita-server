@@ -13,6 +13,7 @@ Bundler.require
 Dotenv.load
 
 class QiitaItemNotFoundError < StandardError; end
+class CannotGetGitHubContentError < StandardError; end
 
 # TODO: support private repo because developers blog content repo is actually a private!
 
@@ -44,7 +45,14 @@ end
 def retrieve_content_and_description(new_file_path)
   connection = Faraday.new('https://api.github.com')
   connection.headers['Accept'] = 'application/vnd.github.VERSION.raw'
+  connection.headers['Authorization'] = "token #{ENV['GITHUB_PERSONAL_ACCESS_TOKEN']}"
   response = connection.get("/repos/#{ENV['GITHUB_REPOS']}/contents/#{new_file_path}")
+
+  unless response.status == 200
+    log.fatal("GitHub server returns status #{response.status}")
+    log.fatal("Reason: #{response.body}")
+    raise CannotGetGitHubContentError, "GitHub server returns status #{response.status}"
+  end
 
   yaml_description = ''
   yaml_to_be_trimmed = ''
