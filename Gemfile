@@ -7,4 +7,8 @@ ruby '2.7.1'
 gem 'dotenv'
 gem 'faraday'
 gem 'sinatra'
-gem 'sinatra-contrib'
+
+group :development, :test do
+  gem 'pry-byebug'
+  gem 'sinatra-contrib'
+end

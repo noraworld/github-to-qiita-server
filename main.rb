@@ -4,8 +4,9 @@ require 'bundler/setup'
 require 'faraday'
 require 'json'
 require 'logger'
+require 'pry'
 require 'sinatra'
-require 'sinatra/reloader'
+require 'sinatra/reloader' if development?
 require 'yaml'
 
 Bundler.require
