@@ -147,10 +147,14 @@ def private?(published: false)
 end
 
 def map_filepath_with_qiita_item_id(filepath, item_id)
-  # TODO: reverse (top is the latest) is better?
   # TODO: manage mapping file in developers blog content repo, not in this repo, in the future
-  File.open('mapping.txt', 'a') do |file|
+
+  # Reverse write: https://teratail.com/questions/143030#reply-216543
+  File.open('mapping.txt', 'r+') do |file|
+    line = file.read
+    file.seek(0)
     file.write("#{filepath}, #{item_id}\n")
+    file.write(line)
   end
 end
 
