@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require 'base64'
 require 'bundler/setup'
 require 'faraday'
 require 'json'
@@ -46,7 +47,7 @@ def retrieve_content_and_description(new_file_path)
   connection.headers['Authorization'] = "token #{ENV['GITHUB_PERSONAL_ACCESS_TOKEN']}"
   response = connection.get("/repos/#{ENV['GITHUB_REPOS']}/contents/#{new_file_path}")
 
-  unless response.status == 200
+  unless response.status.to_s[0] == '2'
     log.fatal("GitHub server returns status #{response.status}")
     log.fatal("Reason: #{response.body}")
     raise CannotGetGitHubContentError, "GitHub server returns status #{response.status}"
@@ -152,23 +153,72 @@ def private?(published: false)
   !published
 end
 
-def map_filepath_with_qiita_item_id(filepath, item_id)
-  # TODO: manage mapping file in developers blog content repo, not in this repo, in the future
+# Returns Hash
+# {
+#   content: String or Nil: the content of file decoded Base64,
+#   sha: String or Nil: the SHA of file,
+#   exist: Boolean: if mapping file exists
+# }
+def retrieve_mapping_file
+  connection = Faraday.new('https://api.github.com')
+  connection.headers['Accept'] = 'application/vnd.github.v3+json'
+  connection.headers['Authorization'] = "token #{ENV['GITHUB_PERSONAL_ACCESS_TOKEN']}"
+  response = connection.get("/repos/#{ENV['GITHUB_REPOS']}/contents/#{ENV['MAPPING_FILEPATH']}")
 
-  # Reverse write: https://teratail.com/questions/143030#reply-216543
-  File.open('mapping.txt', 'r+') do |file|
-    line = file.read
-    file.seek(0)
-    file.write("#{filepath}, #{item_id}\n")
-    file.write(line)
+  mapping_file = if response.status == 404
+                   {
+                     content: nil,
+                     sha: nil,
+                     exist: false
+                   }
+                 else
+                   {
+                     content: Base64.decode64(JSON.parse(response.body)['content']),
+                     sha: JSON.parse(response.body)['sha'],
+                     exist: true
+                   }
+                 end
+
+  # GitHub will return response status 404 if a mapping file does not exist
+  # In that case, it will add a mapping file as a new file
+  # This will probably happen only the first time
+  if response.status.to_s[0] != '2' && response.status != 404
+    log.fatal("GitHub server returns status #{response.status}")
+    log.fatal("Reason: #{response.body}")
+    raise CannotGetGitHubContentError, "GitHub server returns status #{response.status}"
   end
+
+  mapping_file
+end
+
+def map_filepath_with_qiita_item_id(filepath, item_id)
+  mapping_file = retrieve_mapping_file
+
+  connection = Faraday.new('https://api.github.com')
+  response = connection.put do |request|
+    request.url("/repos/#{ENV['GITHUB_REPOS']}/contents/#{ENV['MAPPING_FILEPATH']}")
+    request.headers['Accept'] = 'application/vnd.github.v3+json'
+    request.headers['Authorization'] = "token #{ENV['GITHUB_PERSONAL_ACCESS_TOKEN']}"
+    request.headers['Content-Type'] = 'application/json'
+
+    request_body = {
+      message: 'Update mapping file',
+      content: Base64.encode64("#{filepath}, #{item_id}\n#{mapping_file[:content]}")
+    }
+    request_body.merge!(sha: mapping_file[:sha]) if mapping_file[:sha]
+    request.body = request_body.to_json
+  end
+
+  return if response.status.to_s[0] == '2'
+
+  log.fatal("GitHub server returns status #{response.status}")
+  log.fatal("Reason: #{response.body}")
+  raise CannotGetGitHubContentError, "GitHub server returns status #{response.status}"
 end
 
 def qiita_item_id(filepath)
-  File.open('mapping.txt', 'r') do |file|
-    file.each_line do |line|
-      return line.split(',').last.gsub(/[\s\r\n]/, '') if line.include?(filepath)
-    end
+  retrieve_mapping_file[:content]&.each_line do |line|
+    return line.split(',').last.gsub(/[\s\r\n]/, '') if line.include?(filepath)
   end
 
   log.fatal('Qiita item not found')
