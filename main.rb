@@ -19,6 +19,12 @@ class CannotGetGitHubContentError < StandardError; end
 post '/payload' do
   verify_signature(request.body.read)
 
+  if !JSON.parse(params['payload'])['commits'] && JSON.parse(params['payload'])['zen']
+    log.debug('GitHub Webhook successfully added!')
+    log.debug("GitHub zen: #{JSON.parse(params['payload'])['zen']}")
+    return
+  end
+
   JSON.parse(params['payload'])['commits'].each do |commit|
     commit['added'].each do |new_file_path|
       next unless ENV['INCLUDED_DIR']&.split(',')&.include?(File.dirname(new_file_path))
