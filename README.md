@@ -1,4 +1,9 @@
-# GitHub-to-Qiita
+# IMPORTANT NOTES
+The new implementation is available at [noraworld/github-to-qiita](https://github.com/noraworld/github-to-qiita). It is easy to use because it uses GitHub Actions, which means you do not have to prepare your own server. Happy publishing!
+
+This repository is no longer maintained.
+
+# GitHub-to-Qiita (OLD)
 Pushing development articles into the specific repository, they will be published to [Qiita](https://qiita.com) via [Qiita API v2](https://qiita.com/api/v2/docs).
 
 ## Features
